@@ -1,23 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
-  User,
   RefreshCw,
   LogOut,
   ExternalLink,
   Shield,
   Activity,
   Clock,
-  Gauge,
   KeyRound,
   CheckCircle2,
   Calendar,
   FolderGit2,
+  Users,
+  UserCheck,
+  LockKeyhole,
 } from "lucide-react";
 import { GitHubUser } from "@/lib/session";
 import { RateLimitInfo } from "@/lib/github";
-import { BulkActionSpeed } from "@/types";
+import { UserAvatar } from "./UserAvatar";
 
 interface SettingsViewProps {
   user: GitHubUser;
@@ -38,9 +39,6 @@ export function SettingsView({
   isSyncing,
   onLogout,
 }: SettingsViewProps) {
-  const [defaultSpeed, setDefaultSpeed] = useState<BulkActionSpeed>("safe");
-
-  // Format joined date
   const joinedDate = user.created_at
     ? new Date(user.created_at).toLocaleDateString(undefined, {
         year: "numeric",
@@ -50,214 +48,227 @@ export function SettingsView({
     : "Unknown";
 
   const lastSyncFormatted = syncedAt
-    ? new Date(syncedAt).toLocaleString(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
+    ? new Date(syncedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : "Not yet synced";
 
-  // Format rate limit reset time
   const formatResetTime = (timestamp?: number) => {
     if (!timestamp) return "N/A";
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const quotaPercent = rateLimit
+    ? Math.min(100, Math.max(0, Math.round((rateLimit.remaining / rateLimit.limit) * 100)))
+    : 0;
+
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="animate-rise max-w-5xl space-y-6">
       {/* Header */}
-      <div className="pb-4 border-b border-[#30363d]">
-        <h2 className="text-xl font-bold text-[#f0f6fc]">Settings &amp; Synchronization</h2>
-        <p className="text-xs text-[#8b949e] mt-1">
-          Manage your GitHub profile connection, API rate limits, and synchronization preferences.
+      <div className="border-b border-[var(--border)] pb-5">
+        <span className="eyebrow">Preferences</span>
+        <h1 className="page-title mt-1.5">Settings &amp; synchronization</h1>
+        <p className="mt-1.5 text-[13px] text-[var(--text-muted)]">
+          Manage your connection, monitor API quota and review how your data is handled.
         </p>
       </div>
 
-      {/* GitHub Account Card */}
-      <div className="p-5 sm:p-6 bg-[#161b22] border border-[#30363d] rounded-xl space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">
-            Connected GitHub Account
-          </span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full font-mono bg-[#21262d] text-[#58a6ff] border border-[#30363d] flex items-center gap-1.5">
-            <KeyRound className="w-3 h-3" />
-            {authType === "oauth" ? "GitHub OAuth" : "Personal Access Token"}
+      {/* Account */}
+      <section className="app-panel p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-faint)]">
+            Connected account
+          </p>
+          <span className="app-chip app-chip-info font-mono">
+            <KeyRound className="h-3 w-3" />
+            {authType === "oauth" ? "GitHub OAuth" : "Access token"}
           </span>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-          <div className="flex items-center gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+        <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <UserAvatar
               src={user.avatar_url}
-              alt={user.login}
-              className="w-14 h-14 rounded-full border-2 border-[#30363d]"
+              name={user.login}
+              className="h-16 w-16 text-xl shadow-[var(--shadow-md)]"
+              loading="eager"
             />
-            <div>
-              <h3 className="text-base font-bold text-[#f0f6fc] flex items-center gap-2">
-                {user.name || `@${user.login}`}
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-[var(--text)]">
+                <span className="truncate">{user.name || `@${user.login}`}</span>
                 <a
                   href={user.html_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#8b949e] hover:text-[#58a6ff] transition-colors"
+                  aria-label={`Open @${user.login} on GitHub`}
+                  className="text-[var(--text-faint)] transition-colors hover:text-[var(--info)]"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="h-3.5 w-3.5" />
                 </a>
-              </h3>
-              <p className="text-xs text-[#8b949e]">@{user.login}</p>
+              </h2>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">@{user.login}</p>
               {user.bio && (
-                <p className="text-xs text-[#c9d1d9] mt-1 max-w-md line-clamp-2">{user.bio}</p>
+                <p className="mt-2 line-clamp-2 max-w-md text-[13px] leading-relaxed text-[var(--text-soft)]">
+                  {user.bio}
+                </p>
               )}
             </div>
           </div>
 
-          <button
-            onClick={onLogout}
-            className="self-start sm:self-center flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#f85149] hover:bg-[#da3633]/15 border border-[#da3633]/30 rounded-lg transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+          <button type="button" onClick={onLogout} className="app-btn app-btn-outline self-start text-[var(--danger)] sm:self-center">
+            <LogOut className="h-3.5 w-3.5" />
+            Sign out
           </button>
         </div>
 
-        {/* Account metadata grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-[#30363d]/60 text-xs">
-          <div className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <span className="text-[11px] text-[#8b949e] block">Followers</span>
-            <span className="font-bold text-[#f0f6fc] font-mono text-sm tabular-nums">
-              {user.followers.toLocaleString()}
-            </span>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <span className="text-[11px] text-[#8b949e] block">Following</span>
-            <span className="font-bold text-[#f0f6fc] font-mono text-sm tabular-nums">
-              {user.following.toLocaleString()}
-            </span>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <span className="text-[11px] text-[#8b949e] block flex items-center gap-1">
-              <FolderGit2 className="w-3 h-3" /> Repos
-            </span>
-            <span className="font-bold text-[#f0f6fc] font-mono text-sm tabular-nums">
-              {user.public_repos.toLocaleString()}
-            </span>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[#0d1117] border border-[#30363d]">
-            <span className="text-[11px] text-[#8b949e] block flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Joined
-            </span>
-            <span className="font-medium text-[#f0f6fc] text-xs truncate block">{joinedDate}</span>
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-4">
+          <InfoTile icon={Users} label="Followers" value={user.followers.toLocaleString()} />
+          <InfoTile icon={UserCheck} label="Following" value={user.following.toLocaleString()} />
+          <InfoTile icon={FolderGit2} label="Repositories" value={user.public_repos.toLocaleString()} />
+          <div className="app-panel-inset px-3.5 py-3">
+            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[var(--text-faint)]">
+              <Calendar className="h-3 w-3" /> Joined
+            </p>
+            <p className="mt-1 truncate text-xs font-medium text-[var(--text)]" title={joinedDate}>
+              {joinedDate}
+            </p>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Sync Status & Rate Limit */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Sync Status Box */}
-        <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-xl flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#58a6ff]" />
-                Account Synchronization
+      {/* Sync + quota */}
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="app-panel flex flex-col p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)]">
+                <Clock className="h-4 w-4" />
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-[#3fb950] font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Active
-              </span>
+              <div>
+                <h3 className="section-title">Synchronization</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Local graph index</p>
+              </div>
             </div>
-            <p className="text-xs text-[#8b949e] leading-relaxed">
-              Your follower graph is indexed locally for fast instant search and filtering.
-            </p>
-            <div className="mt-3 p-3 bg-[#0d1117] rounded-lg border border-[#30363d] space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#8b949e]">Last full sync:</span>
-                <span className="text-[#f0f6fc] font-mono">{lastSyncFormatted}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8b949e]">Data status:</span>
-                <span className="text-[#3fb950] font-medium">Up to date</span>
-              </div>
+            <span className="app-chip app-chip-brand">
+              <CheckCircle2 className="h-3 w-3" />
+              Active
+            </span>
+          </div>
+
+          <p className="mt-4 text-[13px] leading-relaxed text-[var(--text-muted)]">
+            Your follower graph is indexed locally for instant search and filtering. A full sync
+            refreshes every account from GitHub.
+          </p>
+
+          <div className="app-panel-inset mt-4 space-y-2 px-4 py-3 text-xs">
+            <div className="flex justify-between gap-3">
+              <span className="text-[var(--text-muted)]">Last full sync</span>
+              <span className="font-mono text-[var(--text)]">{lastSyncFormatted}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-[var(--text-muted)]">Data status</span>
+              <span className="font-medium text-[var(--brand)]">Up to date</span>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onRefresh}
             disabled={isSyncing}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#21262d] hover:bg-[#30363d] text-[#f0f6fc] border border-[#30363d] rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+            className="app-btn app-btn-secondary mt-auto w-full"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-[#58a6ff]" : ""}`} />
-            <span>{isSyncing ? "Fetching complete data..." : "Force Full Re-sync"}</span>
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-[var(--info)]" : ""}`} />
+            {isSyncing ? "Fetching complete data…" : "Force full re-sync"}
           </button>
         </div>
 
-        {/* API Rate Limit Box */}
-        <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-xl flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-[#58a6ff]" />
-                GitHub REST API Rate Limit
-              </span>
+        <div className="app-panel flex flex-col p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--info-soft)] text-[var(--info)]">
+              <Activity className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="section-title">API rate limit</h3>
+              <p className="text-[11px] text-[var(--text-muted)]">GitHub REST quota</p>
             </div>
-            <p className="text-xs text-[#8b949e] leading-relaxed">
-              GitHub limits authenticated REST calls per hour. We monitor this constantly to protect
-              your quota.
-            </p>
-
-            {rateLimit ? (
-              <div className="mt-3 p-3 bg-[#0d1117] rounded-lg border border-[#30363d] space-y-2 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#8b949e]">Remaining requests:</span>
-                  <span className="font-mono font-bold text-[#f0f6fc] tabular-nums">
-                    {rateLimit.remaining.toLocaleString()} / {rateLimit.limit.toLocaleString()}
-                  </span>
-                </div>
-                <div className="w-full h-1.5 bg-[#21262d] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#58a6ff] rounded-full"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round((rateLimit.remaining / rateLimit.limit) * 100)
-                      )}%`,
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-[11px] text-[#8b949e] pt-1">
-                  <span>Quota resets at:</span>
-                  <span className="font-mono text-[#c9d1d9]">
-                    {formatResetTime(rateLimit.reset)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 p-3 bg-[#0d1117] rounded-lg border border-[#30363d] text-xs text-[#8b949e]">
-                Rate limit information will refresh upon your next API call.
-              </div>
-            )}
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-[#8b949e]">
-            <Shield className="w-3.5 h-3.5 text-[#3fb950] shrink-0" />
-            <span>Automatic throttling protects against HTTP 429 errors.</span>
+          <p className="mt-4 text-[13px] leading-relaxed text-[var(--text-muted)]">
+            Authenticated requests are limited per hour. We monitor your quota to keep bulk actions
+            within GitHub&apos;s limits.
+          </p>
+
+          {rateLimit ? (
+            <div className="app-panel-inset mt-4 space-y-3 px-4 py-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--text-muted)]">Remaining requests</span>
+                <span className="font-mono font-semibold tabular-nums text-[var(--text)]">
+                  {rateLimit.remaining.toLocaleString()} / {rateLimit.limit.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    quotaPercent < 15
+                      ? "bg-[var(--danger)]"
+                      : quotaPercent < 40
+                        ? "bg-[var(--warning)]"
+                        : "bg-[var(--info)]"
+                  }`}
+                  style={{ width: `${quotaPercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] text-[var(--text-faint)]">
+                <span>Resets at</span>
+                <span className="font-mono text-[var(--text-soft)]">
+                  {formatResetTime(rateLimit.reset)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="app-panel-inset mt-4 px-4 py-3 text-xs text-[var(--text-muted)]">
+              Quota details refresh after your next API call.
+            </div>
+          )}
+
+          <div className="mt-auto flex items-center gap-2 pt-4 text-[11px] text-[var(--text-faint)]">
+            <Shield className="h-3.5 w-3.5 text-[var(--brand)]" />
+            Automatic throttling protects against HTTP 429 errors.
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Security & Privacy Card */}
-      <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-xl space-y-2 text-xs text-[#8b949e]">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f6fc]">
-          <Shield className="w-4 h-4 text-[#3fb950]" />
-          <span>Security &amp; Token Storage</span>
+      {/* Security */}
+      <section className="app-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:p-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--brand-line)] bg-[var(--brand-soft)] text-[var(--brand)]">
+          <LockKeyhole className="h-5 w-5" />
+        </span>
+        <div>
+          <h3 className="section-title">Security &amp; token storage</h3>
+          <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
+            Your GitHub credentials are never stored in plain text, databases, or client-side storage.
+            Requests are authenticated with secure, encrypted HTTP-only cookies using AES-256-GCM.
+            No scrapers, no background bots, no unauthorized access.
+          </p>
         </div>
-        <p className="leading-relaxed">
-          Your GitHub credentials are never persisted in plain text, database, or client-side storage.
-          All requests are authenticated via secure, encrypted HTTP-only session cookies using AES-256-GCM.
-          No automated web scrapers or unauthorized background bots are used.
-        </p>
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function InfoTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="app-panel-inset px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[var(--text-faint)]">
+        <Icon className="h-3 w-3" /> {label}
+      </p>
+      <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--text)]">{value}</p>
     </div>
   );
 }

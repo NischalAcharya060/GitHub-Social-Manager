@@ -8,12 +8,12 @@ import { Sidebar } from "@/components/Sidebar";
 import { DashboardView } from "@/components/DashboardView";
 import { AccountListView } from "@/components/AccountListView";
 import { SettingsView } from "@/components/SettingsView";
-import { LoginView } from "@/components/LoginView";
+import { LandingView } from "@/components/LandingView";
 import { BulkActionModal } from "@/components/BulkActionModal";
 import { SyncData, TabType } from "@/types";
 import { GitHubAccountItem, RateLimitInfo } from "@/lib/github";
 import { GitHubUser } from "@/lib/session";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 
 function MainApp() {
   const { showToast } = useToast();
@@ -110,8 +110,10 @@ function MainApp() {
     }
   }, [showToast]);
 
-  // Initial load
+  // Initial load: the session + graph fetch are external I/O, so their async
+  // results need to be published back into React state from this subscription.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAuth().then((authed) => {
       if (authed) {
         syncGitHubData(true);
@@ -237,7 +239,7 @@ function MainApp() {
       showToast(
         "success",
         "Batch Action Completed",
-        `Processed ${succeededLogins.length} accounts successfully.`
+        `${succeededLogins.length} succeeded${failedLogins.length ? `, ${failedLogins.length} failed` : ""}.`
       );
     }
   };
@@ -245,17 +247,25 @@ function MainApp() {
   // Loading initial authentication state
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-8 h-8 text-[#58a6ff] animate-spin" />
-        <p className="text-xs text-[#8b949e]">Connecting to GitHub Social Manager...</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="relative">
+          <div className="absolute inset-0 animate-glow rounded-2xl bg-[var(--brand-soft)] blur-xl" />
+          <div className="app-panel relative flex h-14 w-14 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-[var(--brand)]" />
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-[var(--text)]">Connecting to GitHub</p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Preparing your workspace…</p>
+        </div>
       </div>
     );
   }
 
-  // Not signed in: Show Login Screen
+  // Not signed in: Show Landing + Login Screen
   if (!isAuthenticated) {
     return (
-      <LoginView
+      <LandingView
         isOAuthConfigured={isOAuthConfigured}
         oauthError={oauthError}
         onLoginSuccess={() => {
@@ -269,7 +279,7 @@ function MainApp() {
 
   // Signed in: Main Application Shell with Sidebar fixed to full left
   return (
-    <div className="min-h-screen bg-[#0d1117] text-[#f0f6fc] flex">
+    <div className="flex min-h-dvh">
       {/* Sidebar fixed to full left of screen */}
       <Sidebar
         currentTab={currentTab}
@@ -283,7 +293,7 @@ function MainApp() {
       />
 
       {/* Main Content Column offset by sidebar width on desktop */}
-      <div className="flex-1 flex flex-col min-w-0 md:pl-64 min-h-screen">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col md:pl-[272px]">
         {/* Top Navbar Header */}
         <Navbar
           currentTab={currentTab}
@@ -296,22 +306,23 @@ function MainApp() {
         />
 
         {/* Main View Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 w-full max-w-7xl">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="w-full min-w-0 max-w-[1600px] flex-1 p-4 outline-none sm:p-8 lg:p-12"
+        >
           {!syncData && isSyncing ? (
             /* Initial Skeleton Loader */
-            <div className="space-y-6 animate-pulse">
-              <div className="h-24 bg-[#161b22] border border-[#30363d] rounded-xl" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-6" aria-busy="true" aria-label="Loading your GitHub data">
+              <div className="skeleton h-28 rounded-[var(--radius-lg)]" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="h-24 bg-[#161b22] border border-[#30363d] rounded-xl"
-                  />
+                  <div key={i} className="skeleton h-28 rounded-[var(--radius-lg)]" />
                 ))}
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="h-64 bg-[#161b22] border border-[#30363d] rounded-xl" />
-                <div className="h-64 bg-[#161b22] border border-[#30363d] rounded-xl" />
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div className="skeleton h-72 rounded-[var(--radius-lg)]" />
+                <div className="skeleton h-72 rounded-[var(--radius-lg)]" />
               </div>
             </div>
           ) : syncData ? (
@@ -357,13 +368,23 @@ function MainApp() {
               )}
             </>
           ) : (
-            <div className="text-center py-16 space-y-3">
-              <p className="text-sm text-[#8b949e]">Unable to load GitHub data.</p>
+            <div className="app-panel mx-auto max-w-md px-6 py-14 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--warning-soft)] text-[var(--warning)]">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+              <p className="mt-4 text-sm font-semibold text-[var(--text)]">
+                We couldn&apos;t load your GitHub data
+              </p>
+              <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-[var(--text-muted)]">
+                This is usually temporary. Retry the sync to index your followers and following lists.
+              </p>
               <button
+                type="button"
                 onClick={() => syncGitHubData(false)}
-                className="px-4 py-2 bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold rounded-lg"
+                className="app-btn app-btn-primary mx-auto mt-5"
               >
-                Retry Sync
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry sync
               </button>
             </div>
           )}
@@ -387,8 +408,8 @@ export default function Page() {
     <ToastProvider>
       <Suspense
         fallback={
-          <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#58a6ff] animate-spin" />
+          <div className="flex min-h-dvh items-center justify-center">
+            <Loader2 className="h-7 w-7 animate-spin text-[var(--brand)]" />
           </div>
         }
       >

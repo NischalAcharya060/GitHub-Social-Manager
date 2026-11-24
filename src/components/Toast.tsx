@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { ToastMessage } from "@/types";
+import { cn } from "@/lib/ui";
 
 interface ToastContextType {
   showToast: (type: "success" | "error" | "info", title: string, message?: string) => void;
@@ -33,41 +34,51 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      <div
+        aria-live="polite"
+        aria-atomic="false"
+        className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2.5 sm:w-full"
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-lg backdrop-blur-md transition-all duration-200 animate-in slide-in-from-bottom-2 ${
-              toast.type === "success"
-                ? "bg-[#161b22]/95 border-[#238636]/50 text-[#f0f6fc]"
-                : toast.type === "error"
-                ? "bg-[#161b22]/95 border-[#da3633]/50 text-[#f0f6fc]"
-                : "bg-[#161b22]/95 border-[#30363d] text-[#f0f6fc]"
-            }`}
+            role={toast.type === "error" ? "alert" : "status"}
+            className={cn(
+              "animate-scale-in pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-[var(--radius-md)] border p-3.5 shadow-[var(--shadow-lg)] backdrop-blur-xl",
+              toast.type === "success" && "border-[var(--brand-line)] bg-[rgba(14,21,30,0.94)]",
+              toast.type === "error" && "border-[var(--danger-line)] bg-[rgba(14,21,30,0.94)]",
+              toast.type === "info" && "border-[var(--info-line)] bg-[rgba(14,21,30,0.94)]"
+            )}
           >
-            {toast.type === "success" && (
-              <CheckCircle2 className="w-5 h-5 text-[#3fb950] shrink-0 mt-0.5" />
-            )}
-            {toast.type === "error" && (
-              <AlertCircle className="w-5 h-5 text-[#f85149] shrink-0 mt-0.5" />
-            )}
-            {toast.type === "info" && (
-              <Info className="w-5 h-5 text-[#58a6ff] shrink-0 mt-0.5" />
-            )}
+            <span
+              className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                toast.type === "success" && "bg-[var(--brand-soft)] text-[var(--brand)]",
+                toast.type === "error" && "bg-[var(--danger-soft)] text-[var(--danger)]",
+                toast.type === "info" && "bg-[var(--info-soft)] text-[var(--info)]"
+              )}
+            >
+              {toast.type === "success" && <CheckCircle2 className="h-4 w-4" />}
+              {toast.type === "error" && <AlertCircle className="h-4 w-4" />}
+              {toast.type === "info" && <Info className="h-4 w-4" />}
+            </span>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{toast.title}</p>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-sm font-semibold text-[var(--text)]">{toast.title}</p>
               {toast.message && (
-                <p className="text-xs text-[#8b949e] mt-0.5 leading-relaxed">{toast.message}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
+                  {toast.message}
+                </p>
               )}
             </div>
 
             <button
+              type="button"
               onClick={() => removeToast(toast.id)}
-              className="text-[#8b949e] hover:text-[#f0f6fc] p-0.5 rounded transition-colors"
-              aria-label="Close toast"
+              className="-mr-1 -mt-1 rounded-lg p-2 text-[var(--text-faint)] transition-colors hover:bg-white/5 hover:text-[var(--text)]"
+              aria-label="Dismiss notification"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}

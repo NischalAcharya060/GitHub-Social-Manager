@@ -7,15 +7,18 @@ import {
   ExternalLink,
   Menu,
   Activity,
-  User,
   LayoutDashboard,
   UserMinus,
   UserCheck,
   Settings as SettingsIcon,
+  ChevronRight,
+  Star,
 } from "lucide-react";
 import { GitHubUser } from "@/lib/session";
 import { RateLimitInfo } from "@/lib/github";
 import { TabType } from "@/types";
+import { GITHUB_REPO_URL } from "@/lib/ui";
+import { UserAvatar } from "./UserAvatar";
 
 interface NavbarProps {
   currentTab: TabType;
@@ -27,6 +30,16 @@ interface NavbarProps {
   onToggleSidebar: () => void;
 }
 
+const TAB_META: Record<
+  TabType,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  dashboard: { label: "Overview", icon: LayoutDashboard },
+  "not-following-back": { label: "Not Following Back", icon: UserMinus },
+  "follow-back": { label: "Follow Back", icon: UserCheck },
+  settings: { label: "Settings", icon: SettingsIcon },
+};
+
 export function Navbar({
   currentTab,
   user,
@@ -36,97 +49,119 @@ export function Navbar({
   onLogout,
   onToggleSidebar,
 }: NavbarProps) {
-  const getTabLabel = (tab: TabType) => {
-    switch (tab) {
-      case "dashboard":
-        return { label: "Dashboard", icon: LayoutDashboard };
-      case "not-following-back":
-        return { label: "Not Following Back", icon: UserMinus };
-      case "follow-back":
-        return { label: "Follow Back Candidates", icon: UserCheck };
-      case "settings":
-        return { label: "Settings & Sync", icon: SettingsIcon };
-    }
-  };
-
-  const currentInfo = getTabLabel(currentTab);
-  const TabIcon = currentInfo.icon;
+  const { label, icon: TabIcon } = TAB_META[currentTab];
+  const quotaPercent = rateLimit
+    ? Math.min(100, Math.max(0, Math.round((rateLimit.remaining / rateLimit.limit) * 100)))
+    : null;
 
   return (
-    <header className="h-14 border-b border-[#30363d] bg-[#161b22]/90 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
-      {/* Left: Mobile hamburger & Current Page Breadcrumb */}
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-glass)] px-4 backdrop-blur-xl sm:px-8 lg:px-12">
+      {/* Left: menu + breadcrumb */}
+      <div className="flex min-w-0 items-center gap-3">
         <button
+          type="button"
           onClick={onToggleSidebar}
-          className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md md:hidden transition-colors"
-          aria-label="Toggle menu"
+          className="rounded-[var(--radius-sm)] p-2 text-[var(--text-muted)] transition-colors hover:bg-white/5 hover:text-[var(--text)] md:hidden"
+          aria-label="Open navigation"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="h-5 w-5" />
         </button>
 
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-[#f0f6fc]">
-          <TabIcon className="w-4 h-4 text-[#58a6ff]" />
-          <span>{currentInfo.label}</span>
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          <span className="hidden text-[var(--text-faint)] sm:inline">Workspace</span>
+          <ChevronRight className="hidden h-3.5 w-3.5 text-[var(--text-faint)] sm:inline" />
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)]">
+              <TabIcon className="h-3.5 w-3.5" />
+            </span>
+            <span className="truncate font-semibold tracking-tight text-[var(--text)]">{label}</span>
+          </div>
         </div>
       </div>
 
-      {/* Right: Rate limit, Sync, Profile, Logout */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Rate limit status pill */}
+      {/* Right: status + actions */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
         {rateLimit && (
           <div
-            title={`GitHub API Rate Limit: ${rateLimit.remaining} remaining of ${rateLimit.limit}`}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#0d1117] border border-[#30363d] rounded-full text-xs text-[#8b949e]"
+            className="hidden items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-deep)]/50 px-3 py-1.5 sm:flex"
+            title={`GitHub API quota: ${rateLimit.remaining.toLocaleString()} of ${rateLimit.limit.toLocaleString()} requests remaining`}
           >
-            <Activity className="w-3.5 h-3.5 text-[#58a6ff]" />
-            <span className="tabular-nums font-mono text-[11px] text-[#c9d1d9]">
-              {rateLimit.remaining.toLocaleString()}
-            </span>
-            <span className="text-[10px] text-[#6e7681]">/ {rateLimit.limit}</span>
+            <Activity className="h-3.5 w-3.5 text-[var(--info)]" />
+            <div>
+              <div className="flex items-baseline gap-1 font-mono text-[11px] tabular-nums">
+                <span className="font-semibold text-[var(--text)]">
+                  {rateLimit.remaining.toLocaleString()}
+                </span>
+                <span className="text-[var(--text-faint)]">/ {rateLimit.limit.toLocaleString()}</span>
+              </div>
+              <div className="mt-1 h-[3px] w-16 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    (quotaPercent ?? 0) < 15
+                      ? "bg-[var(--danger)]"
+                      : (quotaPercent ?? 0) < 40
+                        ? "bg-[var(--warning)]"
+                        : "bg-[var(--info)]"
+                  }`}
+                  style={{ width: `${quotaPercent ?? 0}%` }}
+                />
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Sync / Refresh Button */}
+        <a
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="app-btn app-btn-outline h-10 px-2.5 sm:px-3"
+          aria-label="Star GitHub Social Manager on GitHub"
+          title="Star on GitHub"
+        >
+          <Star className="h-3.5 w-3.5 text-[var(--warning)]" />
+          <span className="hidden sm:inline">Star</span>
+        </a>
+
         <button
+          type="button"
           onClick={onSync}
           disabled={isSyncing}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-[#f0f6fc] bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors disabled:opacity-50"
-          title="Refresh Followers & Following lists"
+          className="app-btn app-btn-secondary h-10 px-3"
+          aria-label={isSyncing ? "Syncing GitHub data" : "Sync GitHub data"}
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-[#58a6ff]" : ""}`} />
-          <span className="hidden sm:inline">{isSyncing ? "Syncing..." : "Sync"}</span>
+          <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-[var(--info)]" : ""}`} />
+          <span className="hidden sm:inline">{isSyncing ? "Syncing" : "Sync"}</span>
         </button>
 
-        {/* User avatar with link */}
         {user && (
           <a
             href={user.html_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 py-0.5 px-2 hover:bg-[#21262d] rounded-lg border border-transparent hover:border-[#30363d] transition-colors group"
-            title={`Open @${user.login} on GitHub`}
+            className="group flex items-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-1.5 py-1 transition-colors hover:border-[var(--border)] hover:bg-white/[0.035]"
+            aria-label={`Open @${user.login} on GitHub`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <UserAvatar
               src={user.avatar_url}
-              alt={user.login}
-              className="w-6 h-6 rounded-full border border-[#30363d]"
+              name={user.login}
+              className="h-7 w-7 text-[10px]"
+              loading="eager"
             />
-            <span className="hidden sm:inline text-xs font-medium text-[#c9d1d9] group-hover:text-[#f0f6fc]">
+            <span className="hidden text-xs font-medium text-[var(--text-soft)] transition-colors group-hover:text-[var(--text)] lg:inline">
               @{user.login}
             </span>
-            <ExternalLink className="w-3 h-3 text-[#6e7681] group-hover:text-[#8b949e] hidden sm:inline" />
+            <ExternalLink className="hidden h-3 w-3 text-[var(--text-faint)] group-hover:text-[var(--info)] lg:inline" />
           </a>
         )}
 
-        {/* Logout button */}
         <button
+          type="button"
           onClick={onLogout}
-          className="p-1.5 text-[#8b949e] hover:text-[#f85149] hover:bg-[#21262d] rounded-lg transition-colors border border-transparent hover:border-[#da3633]/30"
-          title="Sign Out"
-          aria-label="Sign Out"
+          className="rounded-[var(--radius-sm)] border border-transparent p-2 text-[var(--text-muted)] transition-colors hover:border-[var(--danger-line)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+          aria-label="Sign out"
+          title="Sign out"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="h-4 w-4" />
         </button>
       </div>
     </header>

@@ -1,39 +1,44 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   KeyRound,
   ArrowRight,
   ExternalLink,
   Info,
   Loader2,
+  BookOpen,
+  ShieldCheck,
+  LockKeyhole,
 } from "lucide-react";
 import { GithubIcon } from "./GithubIcon";
 import { BrandLogo } from "./BrandLogo";
 import { useToast } from "./Toast";
+import { cn } from "@/lib/ui";
 
 interface LoginViewProps {
   isOAuthConfigured: boolean;
   onLoginSuccess: () => void;
   oauthError?: string | null;
+  compact?: boolean;
 }
 
 export function LoginView({
   isOAuthConfigured,
   onLoginSuccess,
   oauthError,
+  compact = false,
 }: LoginViewProps) {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"pat" | "oauth">(
-    isOAuthConfigured ? "oauth" : "pat"
-  );
+  const [activeTab, setActiveTab] = useState<"pat" | "oauth">(isOAuthConfigured ? "oauth" : "pat");
   const [patToken, setPatToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(oauthError || null);
 
-  const handlePatLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePatLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!patToken.trim()) {
       setErrorMsg("Please enter your GitHub Personal Access Token.");
       return;
@@ -48,7 +53,6 @@ export function LoginView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: patToken.trim() }),
       });
-
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -58,176 +62,236 @@ export function LoginView({
       showToast("success", "Signed in successfully", `Welcome @${data.user.login}!`);
       onLoginSuccess();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to sign in";
-      setErrorMsg(msg);
-      showToast("error", "Sign in failed", msg);
+      const message = err instanceof Error ? err.message : "Failed to sign in";
+      setErrorMsg(message);
+      showToast("error", "Sign in failed", message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOAuthLogin = () => {
-    window.location.href = "/api/auth/github";
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0d1117] flex flex-col justify-center items-center p-4 sm:p-6 relative selection:bg-[#388bfd]/30">
-      <div className="w-full max-w-[420px] z-10">
-        {/* Header Branding */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center mb-3">
-            <BrandLogo className="w-14 h-14 shadow-xl" />
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#f0f6fc]">
-            GitHub Social Manager
-          </h1>
-          <p className="text-xs text-[#8b949e] mt-1.5">
-            Audit non-followers and manage follow-backs safely.
-          </p>
+  const cardContent = (
+    <div className="app-panel w-full overflow-hidden">
+      <div className="border-b border-[var(--border-subtle)] px-5 pt-5 sm:px-6">
+        <div className="flex gap-1" role="tablist" aria-label="Sign-in method">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "oauth"}
+            onClick={() => {
+              setActiveTab("oauth");
+              setErrorMsg(null);
+            }}
+            className={cn(
+              "relative flex flex-1 items-center justify-center gap-2 px-2 pb-3.5 text-[13px] font-semibold transition-colors",
+              activeTab === "oauth"
+                ? "text-[var(--text)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"
+            )}
+          >
+            <GithubIcon className="h-4 w-4" />
+            GitHub OAuth
+            {activeTab === "oauth" && (
+              <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--brand)]" />
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "pat"}
+            onClick={() => {
+              setActiveTab("pat");
+              setErrorMsg(null);
+            }}
+            className={cn(
+              "relative flex flex-1 items-center justify-center gap-2 px-2 pb-3.5 text-[13px] font-semibold transition-colors",
+              activeTab === "pat"
+                ? "text-[var(--text)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"
+            )}
+          >
+            <KeyRound className="h-4 w-4" />
+            Access Token
+            {activeTab === "pat" && (
+              <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[var(--brand)]" />
+            )}
+          </button>
         </div>
+      </div>
 
-        {/* Auth Box */}
-        <div className="bg-[#161b22] border border-[#30363d] rounded-xl shadow-xl p-6">
-          {/* Method Selector Tabs */}
-          <div className="flex border-b border-[#30363d] mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab("oauth");
-                setErrorMsg(null);
-              }}
-              className={`flex-1 pb-2.5 text-xs font-semibold transition-colors border-b-2 flex items-center justify-center gap-1.5 ${
-                activeTab === "oauth"
-                  ? "border-[#2ea043] text-[#f0f6fc]"
-                  : "border-transparent text-[#8b949e] hover:text-[#c9d1d9]"
-              }`}
-            >
-              <GithubIcon className="w-3.5 h-3.5" />
-              GitHub OAuth
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab("pat");
-                setErrorMsg(null);
-              }}
-              className={`flex-1 pb-2.5 text-xs font-semibold transition-colors border-b-2 flex items-center justify-center gap-1.5 ${
-                activeTab === "pat"
-                  ? "border-[#2ea043] text-[#f0f6fc]"
-                  : "border-transparent text-[#8b949e] hover:text-[#c9d1d9]"
-              }`}
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              Personal Access Token
-            </button>
+      <div className="p-5 sm:p-6">
+        {errorMsg && (
+          <div
+            role="alert"
+            className="mb-4 flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3.5 py-3 text-xs leading-relaxed text-[var(--danger)]"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
+        )}
 
-          {errorMsg && (
-            <div className="mb-4 p-3 rounded-lg bg-[#da3633]/15 border border-[#da3633]/40 text-xs text-[#f85149] flex items-start gap-2">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="leading-relaxed">{errorMsg}</div>
-            </div>
-          )}
-
-          {activeTab === "oauth" ? (
-            <div className="space-y-4">
-              <p className="text-xs text-[#8b949e] leading-relaxed">
-                Sign in with your GitHub account to manage followers and following lists.
+        {activeTab === "oauth" ? (
+          <div className="space-y-4">
+            <div>
+              <h2 className="section-title">One-click access</h2>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
+                Authorize with GitHub and we&apos;ll handle the rest. No token creation, no copy and
+                paste.
               </p>
+            </div>
 
-              {isOAuthConfigured ? (
+            {isOAuthConfigured ? (
+              <a
+                href="/api/auth/github"
+                className="app-btn app-btn-primary h-12 w-full text-sm"
+              >
+                <GithubIcon className="h-4 w-4" />
+                Continue with GitHub
+                <ArrowRight className="ml-auto h-4 w-4" />
+              </a>
+            ) : (
+              <div className="app-panel-inset space-y-3 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text)]">
+                  <Info className="h-4 w-4 text-[var(--info)]" />
+                  OAuth isn&apos;t configured here
+                </div>
+                <p className="text-[13px] leading-relaxed text-[var(--text-muted)]">
+                  Add your OAuth credentials to <code className="text-[var(--brand)]">.env.local</code>,
+                  or sign in instantly with a personal access token.
+                </p>
                 <button
                   type="button"
-                  onClick={handleOAuthLogin}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#238636] hover:bg-[#2ea043] text-white font-medium rounded-lg text-xs sm:text-sm transition-all shadow-sm active:scale-[0.99]"
+                  onClick={() => setActiveTab("pat")}
+                  className="app-btn app-btn-outline w-full"
                 >
-                  <GithubIcon className="w-4 h-4" />
-                  Continue with GitHub
-                  <ArrowRight className="w-4 h-4 ml-auto" />
+                  Use a personal access token
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </button>
-              ) : (
-                <div className="p-3.5 rounded-lg bg-[#0d1117] border border-[#30363d] space-y-2.5">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#f0f6fc]">
-                    <Info className="w-3.5 h-3.5 text-[#58a6ff]" />
-                    OAuth App Not Configured
-                  </div>
-                  <p className="text-xs text-[#8b949e] leading-relaxed">
-                    OAuth credentials are not set in <code className="text-[#f0f6fc] bg-[#161b22] px-1 py-0.5 rounded">.env.local</code>. Please use Personal Access Token login below.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("pat")}
-                    className="w-full py-1.5 px-3 text-xs font-medium text-[#58a6ff] hover:text-[#79c0ff] bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] rounded-md transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    Switch to Personal Access Token Login
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-white/[0.02] px-3 py-2.5 text-[11px] text-[var(--text-faint)]">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--brand)]" />
+              Scoped to <span className="font-mono text-[var(--text-soft)]">user:follow</span> and{" "}
+              <span className="font-mono text-[var(--text-soft)]">read:user</span> only.
             </div>
-          ) : (
-            <form onSubmit={handlePatLogin} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-medium text-[#c9d1d9] mb-1.5">
-                  GitHub Personal Access Token
+          </div>
+        ) : (
+          <form onSubmit={handlePatLogin} className="space-y-4">
+            <div>
+              <h2 className="section-title">Use your own token</h2>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
+                Paste a token with the <span className="font-mono text-[var(--brand)]">user:follow</span>{" "}
+                scope. It never leaves your encrypted session.
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="pat-token" className="app-label mb-0">
+                  Personal access token
                 </label>
-                <div className="relative">
-                  <input
-                    type={showToken ? "text" : "password"}
-                    value={patToken}
-                    onChange={(e) => setPatToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxx or github_pat_xxxxxxxx"
-                    className="w-full px-3 py-2 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs text-[#f0f6fc] placeholder-[#6e7681] focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors pr-14 font-mono"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken(!showToken)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[#8b949e] hover:text-[#f0f6fc] px-1.5 py-0.5 rounded"
-                  >
-                    {showToken ? "Hide" : "Show"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-2.5 bg-[#0d1117] rounded-lg border border-[#30363d] space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#8b949e] text-[11px]">Required scope:</span>
-                  <span className="bg-[#161b22] text-[#3fb950] px-1.5 py-0.5 rounded text-[10px] font-mono border border-[#30363d]">
-                    user:follow
-                  </span>
-                </div>
-                <a
-                  href="https://github.com/settings/tokens/new?scopes=user:follow,read:user&description=GitHub+Social+Manager"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-[#58a6ff] hover:text-[#79c0ff] hover:underline"
+                <Link
+                  href="/docs#method-pat"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--info)] transition-colors hover:text-[var(--text)]"
                 >
-                  <span>Generate token on GitHub with pre-selected scopes</span>
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </a>
+                  Need help?
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
               </div>
+              <div className="relative mt-2">
+                <input
+                  id="pat-token"
+                  type={showToken ? "text" : "password"}
+                  value={patToken}
+                  onChange={(event) => setPatToken(event.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  autoComplete="off"
+                  spellCheck={false}
+                  required
+                  className="app-input h-12 pr-16 font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((value) => !value)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-white/5 hover:text-[var(--text)]"
+                  aria-label={showToken ? "Hide token" : "Show token"}
+                >
+                  {showToken ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white font-medium rounded-lg text-xs sm:text-sm transition-all shadow-sm"
+            <div className="app-panel-inset space-y-2 p-3.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--text-muted)]">Required scope</span>
+                <span className="rounded-md border border-[var(--brand-line)] bg-[var(--brand-soft)] px-2 py-0.5 font-mono text-[10px] text-[var(--brand)]">
+                  user:follow
+                </span>
+              </div>
+              <a
+                href="https://github.com/settings/tokens/new?scopes=user:follow,read:user&description=GitHub+Social+Manager"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--info)] transition-colors hover:text-[var(--text)]"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Validating with GitHub...
-                  </>
-                ) : (
-                  <>
-                    <KeyRound className="w-3.5 h-3.5" />
-                    Sign In with Token
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+                Generate a pre-scoped token on GitHub
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="app-btn app-btn-primary h-12 w-full text-sm"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Validating with GitHub…
+                </>
+              ) : (
+                <>
+                  <LockKeyhole className="h-4 w-4" />
+                  Sign in with token
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        <div className="mt-6 border-t border-[var(--border-subtle)] pt-4 text-center">
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--info)]"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Read the setup guide
+            <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
+      </div>
+    </div>
+  );
+
+  if (compact) return cardContent;
+
+  return (
+    <div className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-10 sm:px-6">
+      <div className="pointer-events-none absolute left-1/2 top-[-14rem] h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-[var(--brand-soft)] blur-[100px]" />
+      <div className="relative w-full max-w-[430px]">
+        <div className="mb-7 text-center">
+          <div className="mb-4 inline-flex">
+            <BrandLogo className="h-14 w-14 drop-shadow-[0_10px_30px_rgba(87,217,138,0.22)]" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text)]">
+            GitHub Social Manager
+          </h1>
+          <p className="mt-2 text-[13px] text-[var(--text-muted)]">
+            Audit non-followers and grow real mutual connections.
+          </p>
+        </div>
+        {cardContent}
       </div>
     </div>
   );

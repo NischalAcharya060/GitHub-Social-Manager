@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Search,
   UserMinus,
@@ -10,13 +10,13 @@ import {
   Square,
   ChevronLeft,
   ChevronRight,
-  AlertCircle,
   CheckCircle2,
   Loader2,
   X,
-  SlidersHorizontal,
+  ListFilter,
 } from "lucide-react";
 import { GitHubAccountItem } from "@/lib/github";
+import { UserAvatar } from "./UserAvatar";
 
 interface AccountListViewProps {
   type: "not-following-back" | "follow-back";
@@ -34,21 +34,18 @@ export function AccountListView({
   const isUnfollowMode = type === "not-following-back";
   const actionVerb = isUnfollowMode ? "Unfollow" : "Follow";
 
-  // State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLogins, setSelectedLogins] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [loadingUsernames, setLoadingUsernames] = useState<Set<string>>(new Set());
 
-  // Filter accounts by search query
   const filteredAccounts = useMemo(() => {
     if (!searchQuery.trim()) return accounts;
     const query = searchQuery.toLowerCase().trim();
-    return accounts.filter((u) => u.login.toLowerCase().includes(query));
+    return accounts.filter((user) => user.login.toLowerCase().includes(query));
   }, [accounts, searchQuery]);
 
-  // Pagination calculation
   const totalItems = filteredAccounts.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -58,53 +55,42 @@ export function AccountListView({
     return filteredAccounts.slice(start, start + pageSize);
   }, [filteredAccounts, safePage, pageSize]);
 
-  // Selection handlers
   const isAllPageSelected =
     paginatedAccounts.length > 0 &&
-    paginatedAccounts.every((acc) => selectedLogins.has(acc.login));
+    paginatedAccounts.every((account) => selectedLogins.has(account.login));
 
   const toggleSelectAllPage = () => {
     const next = new Set(selectedLogins);
-    if (isAllPageSelected) {
-      paginatedAccounts.forEach((acc) => next.delete(acc.login));
-    } else {
-      paginatedAccounts.forEach((acc) => next.add(acc.login));
-    }
+    paginatedAccounts.forEach((account) => {
+      if (isAllPageSelected) next.delete(account.login);
+      else next.add(account.login);
+    });
     setSelectedLogins(next);
   };
 
   const toggleSelectUser = (login: string) => {
     const next = new Set(selectedLogins);
-    if (next.has(login)) {
-      next.delete(login);
-    } else {
-      next.add(login);
-    }
+    if (next.has(login)) next.delete(login);
+    else next.add(login);
     setSelectedLogins(next);
   };
 
   const selectAllFiltered = () => {
-    const next = new Set<string>();
-    filteredAccounts.forEach((acc) => next.add(acc.login));
-    setSelectedLogins(next);
+    setSelectedLogins(new Set(filteredAccounts.map((account) => account.login)));
   };
 
-  const clearSelection = () => {
-    setSelectedLogins(new Set());
-  };
+  const clearSelection = () => setSelectedLogins(new Set());
 
-  // Get selected objects
-  const selectedAccounts = useMemo(() => {
-    return accounts.filter((acc) => selectedLogins.has(acc.login));
-  }, [accounts, selectedLogins]);
+  const selectedAccounts = useMemo(
+    () => accounts.filter((account) => selectedLogins.has(account.login)),
+    [accounts, selectedLogins]
+  );
 
-  // Execute single action
   const handleSingleActionClick = async (username: string) => {
     setLoadingUsernames((prev) => new Set(prev).add(username));
     try {
       const ok = await onSingleAction(isUnfollowMode ? "unfollow" : "follow", username);
       if (ok) {
-        // remove from selected set if selected
         setSelectedLogins((prev) => {
           const next = new Set(prev);
           next.delete(username);
@@ -120,171 +106,161 @@ export function AccountListView({
     }
   };
 
+  const bulkButtonClass = isUnfollowMode ? "app-btn-danger" : "app-btn-primary";
+  const BulkIcon = isUnfollowMode ? UserMinus : UserPlus;
+
   return (
-    <div className="space-y-4">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#30363d]">
+    <div className="animate-rise space-y-5">
+      {/* Header */}
+      <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-[#f0f6fc] flex items-center gap-2">
+          <span className={isUnfollowMode ? "eyebrow" : "eyebrow-blue"}>
+            {isUnfollowMode ? "Cleanup queue" : "Opportunities"}
+          </span>
+          <h1 className="page-title mt-1.5 flex flex-wrap items-center gap-2.5">
             {isUnfollowMode ? (
-              <>
-                <UserMinus className="w-5 h-5 text-[#f85149]" />
-                Not Following Back
-              </>
+              <UserMinus className="h-5 w-5 text-[var(--danger)]" />
             ) : (
-              <>
-                <UserPlus className="w-5 h-5 text-[#3fb950]" />
-                Follow Back Candidates
-              </>
+              <UserPlus className="h-5 w-5 text-[var(--brand)]" />
             )}
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]">
-              {accounts.length.toLocaleString()}
-            </span>
-          </h2>
-          <p className="text-xs text-[#8b949e] mt-1">
+            {isUnfollowMode ? "Not Following Back" : "Follow Back Candidates"}
+            <span className="app-chip font-mono tabular-nums">{accounts.length.toLocaleString()}</span>
+          </h1>
+          <p className="mt-1.5 max-w-xl text-[13px] text-[var(--text-muted)]">
             {isUnfollowMode
-              ? "Accounts you follow that do not follow your profile back."
-              : "Accounts following you that you have not followed yet."}
+              ? "Accounts you follow that don't follow your profile back. Review before taking action."
+              : "Developers who follow you that you haven't followed yet."}
           </p>
         </div>
 
-        {/* Global Bulk Action Button */}
         {accounts.length > 0 && (
           <button
+            type="button"
             onClick={() => onBulkAction(isUnfollowMode ? "unfollow" : "follow", accounts)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold text-white transition-all shadow-sm ${
-              isUnfollowMode
-                ? "bg-[#da3633] hover:bg-[#b62324]"
-                : "bg-[#238636] hover:bg-[#2ea043]"
-            }`}
+            className={`app-btn ${bulkButtonClass}`}
           >
-            {isUnfollowMode ? <UserMinus className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-            <span>
-              {actionVerb} All ({accounts.length})
-            </span>
+            <BulkIcon className="h-4 w-4" />
+            {actionVerb} all ({accounts.length})
           </button>
         )}
       </div>
 
-      {/* Control Bar: Search & Bulk Action on Selection */}
-      <div className="p-3 bg-[#161b22] border border-[#30363d] rounded-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Search Field */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8b949e]" />
+      {/* Controls */}
+      <div className="app-panel flex flex-col gap-3 p-3.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-faint)]" />
+          <label htmlFor="account-search" className="sr-only">
+            Search accounts by username
+          </label>
           <input
-            type="text"
+            id="account-search"
+            type="search"
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
               setPage(1);
             }}
-            placeholder={`Search among ${accounts.length} accounts...`}
-            className="w-full pl-9 pr-8 py-2 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs text-[#f0f6fc] placeholder-[#6e7681] focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors"
+            placeholder={`Search ${accounts.length.toLocaleString()} accounts…`}
+            className="app-input pl-9 pr-9"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => {
                 setSearchQuery("");
                 setPage(1);
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8b949e] hover:text-[#f0f6fc] p-0.5"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--text-faint)] transition-colors hover:bg-white/5 hover:text-[var(--text)]"
+              aria-label="Clear search"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        {/* Action on selected & Page size */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Selected count info & bulk button */}
+        <div className="flex flex-wrap items-center gap-2.5">
           {selectedLogins.size > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[#8b949e] font-mono tabular-nums">
+            <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5">
+              <span className="font-mono text-xs font-semibold tabular-nums text-[var(--text)]">
                 {selectedLogins.size} selected
               </span>
               <button
-                onClick={() =>
-                  onBulkAction(isUnfollowMode ? "unfollow" : "follow", selectedAccounts)
-                }
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors ${
-                  isUnfollowMode
-                    ? "bg-[#da3633] hover:bg-[#b62324]"
-                    : "bg-[#238636] hover:bg-[#2ea043]"
-                }`}
+                type="button"
+                onClick={() => onBulkAction(isUnfollowMode ? "unfollow" : "follow", selectedAccounts)}
+                className={`app-btn ${bulkButtonClass} min-h-8 px-2.5 py-1`}
               >
-                {isUnfollowMode ? (
-                  <UserMinus className="w-3.5 h-3.5" />
-                ) : (
-                  <UserPlus className="w-3.5 h-3.5" />
-                )}
-                <span>
-                  {actionVerb} Selected ({selectedLogins.size})
-                </span>
+                <BulkIcon className="h-3.5 w-3.5" />
+                {actionVerb} selected
               </button>
               <button
+                type="button"
                 onClick={clearSelection}
-                className="text-xs text-[#8b949e] hover:text-[#f0f6fc] underline px-1"
+                className="rounded-md px-1.5 py-1 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
               >
                 Clear
               </button>
             </div>
           )}
 
-          {/* Page size dropdown */}
-          <div className="flex items-center gap-1.5 ml-auto text-xs text-[#8b949e]">
-            <span>Show</span>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <ListFilter className="h-3.5 w-3.5 text-[var(--text-faint)]" />
+            <label htmlFor="page-size" className="sr-only">
+              Accounts per page
+            </label>
             <select
+              id="page-size"
               value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
                 setPage(1);
               }}
-              className="bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff]"
+              className="app-input h-9 w-auto py-1 pr-7 text-xs"
             >
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Select All Bar */}
+      {/* Selection bar */}
       {filteredAccounts.length > 0 && (
-        <div className="px-4 py-2 bg-[#21262d]/50 border border-[#30363d] rounded-lg flex items-center justify-between text-xs text-[#8b949e]">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-white/[0.02] px-4 py-2.5 text-xs text-[var(--text-muted)]">
+          <div className="flex flex-wrap items-center gap-4">
             <button
+              type="button"
               onClick={toggleSelectAllPage}
-              className="flex items-center gap-2 hover:text-[#f0f6fc] transition-colors"
+              aria-pressed={isAllPageSelected}
+              className="flex items-center gap-2 transition-colors hover:text-[var(--text)]"
             >
               {isAllPageSelected ? (
-                <CheckSquare className="w-4 h-4 text-[#58a6ff]" />
+                <CheckSquare className="h-4 w-4 text-[var(--info)]" />
               ) : (
-                <Square className="w-4 h-4 text-[#8b949e]" />
+                <Square className="h-4 w-4 text-[var(--text-faint)]" />
               )}
-              <span>Select this page ({paginatedAccounts.length})</span>
+              Select this page ({paginatedAccounts.length})
             </button>
-
             {filteredAccounts.length > paginatedAccounts.length && (
               <button
+                type="button"
                 onClick={selectAllFiltered}
-                className="text-[#58a6ff] hover:text-[#79c0ff] hover:underline"
+                className="font-medium text-[var(--info)] transition-colors hover:text-[var(--text)]"
               >
-                Select all {filteredAccounts.length} matching accounts
+                Select all {filteredAccounts.length.toLocaleString()} matching
               </button>
             )}
           </div>
-
-          <span className="font-mono tabular-nums hidden sm:inline">
-            Showing {(safePage - 1) * pageSize + 1} -{" "}
-            {Math.min(safePage * pageSize, totalItems)} of {totalItems}
+          <span className="font-mono tabular-nums text-[var(--text-faint)]">
+            {totalItems === 0 ? "0" : (safePage - 1) * pageSize + 1}–
+            {Math.min(safePage * pageSize, totalItems)} of {totalItems.toLocaleString()}
           </span>
         </div>
       )}
 
-      {/* Account List */}
+      {/* List */}
       {paginatedAccounts.length > 0 ? (
-        <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden divide-y divide-[#30363d]">
+        <div className="app-panel-flat divide-y divide-[var(--border-subtle)] overflow-hidden">
           {paginatedAccounts.map((account) => {
             const isSelected = selectedLogins.has(account.login);
             const isLoading = loadingUsernames.has(account.login);
@@ -292,87 +268,75 @@ export function AccountListView({
             return (
               <div
                 key={account.id}
-                className={`p-3.5 sm:p-4 flex items-center justify-between gap-3 transition-colors ${
-                  isSelected ? "bg-[#21262d]/80" : "hover:bg-[#21262d]/30"
+                className={`flex items-center gap-3 px-3.5 py-3.5 transition-colors sm:gap-4 sm:px-5 ${
+                  isSelected ? "bg-[var(--info-soft)]" : "hover:bg-white/[0.025]"
                 }`}
               >
-                {/* Left: Checkbox & User Info */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    onClick={() => toggleSelectUser(account.login)}
-                    className="p-1 rounded text-[#8b949e] hover:text-[#f0f6fc] transition-colors"
-                    aria-label={`Select ${account.login}`}
-                  >
-                    {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-[#58a6ff]" />
-                    ) : (
-                      <Square className="w-4 h-4 text-[#8b949e]" />
-                    )}
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSelectUser(account.login)}
+                  aria-label={`${isSelected ? "Deselect" : "Select"} @${account.login}`}
+                  aria-pressed={isSelected}
+                  className="rounded-md p-1 text-[var(--text-faint)] transition-colors hover:text-[var(--text)]"
+                >
+                  {isSelected ? (
+                    <CheckSquare className="h-[18px] w-[18px] text-[var(--info)]" />
+                  ) : (
+                    <Square className="h-[18px] w-[18px]" />
+                  )}
+                </button>
 
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={account.avatar_url}
-                    alt={account.login}
-                    className="w-9 h-9 rounded-full border border-[#30363d] shrink-0"
-                    loading="lazy"
-                  />
+                <UserAvatar src={account.avatar_url} name={account.login} className="h-10 w-10 text-sm" />
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={account.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-xs sm:text-sm text-[#f0f6fc] hover:text-[#58a6ff] truncate hover:underline flex items-center gap-1 group"
-                      >
-                        @{account.login}
-                        <ExternalLink className="w-3 h-3 text-[#6e7681] group-hover:text-[#58a6ff] opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                          isUnfollowMode
-                            ? "bg-[#da3633]/15 text-[#f85149]"
-                            : "bg-[#238636]/15 text-[#3fb950]"
-                        }`}
-                      >
-                        {isUnfollowMode ? "Does not follow back" : "Follows you"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Individual Action Button */}
-                <div className="shrink-0 flex items-center gap-2">
+                <div className="min-w-0 flex-1">
                   <a
                     href={account.html_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-[#8b949e] hover:text-[#f0f6fc] bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
+                    className="group inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text)] transition-colors hover:text-[var(--info)]"
                   >
-                    <span>Profile</span>
-                    <ExternalLink className="w-3 h-3" />
+                    <span className="truncate">@{account.login}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-[var(--text-faint)] opacity-0 transition-opacity group-hover:opacity-100" />
                   </a>
+                  <div className="mt-1">
+                    <span
+                      className={`app-chip !px-2 !py-0.5 !text-[10px] ${
+                        isUnfollowMode ? "app-chip-danger" : "app-chip-brand"
+                      }`}
+                    >
+                      {isUnfollowMode ? "Does not follow you" : "Follows you"}
+                    </span>
+                  </div>
+                </div>
 
+                <div className="flex shrink-0 items-center gap-2">
+                  <a
+                    href={account.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="app-btn app-btn-outline hidden h-9 px-3 sm:inline-flex"
+                  >
+                    Profile
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                   <button
+                    type="button"
                     onClick={() => handleSingleActionClick(account.login)}
                     disabled={isLoading}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-50 min-w-[95px] justify-center ${
-                      isUnfollowMode
-                        ? "bg-[#da3633] hover:bg-[#b62324]"
-                        : "bg-[#238636] hover:bg-[#2ea043]"
-                    }`}
+                    className={`app-btn ${bulkButtonClass} h-9 min-w-[104px]`}
+                    aria-label={`${actionVerb} @${account.login}`}
                   >
                     {isLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : isUnfollowMode ? (
-                      <UserMinus className="w-3.5 h-3.5" />
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Working…
+                      </>
                     ) : (
-                      <UserPlus className="w-3.5 h-3.5" />
+                      <>
+                        <BulkIcon className="h-3.5 w-3.5" />
+                        {actionVerb}
+                      </>
                     )}
-                    <span>{isLoading ? "Working..." : actionVerb}</span>
                   </button>
                 </div>
               </div>
@@ -380,70 +344,67 @@ export function AccountListView({
           })}
         </div>
       ) : (
-        /* Empty State */
-        <div className="p-12 bg-[#161b22] border border-[#30363d] rounded-xl text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-[#21262d] flex items-center justify-center text-[#8b949e] mx-auto">
-            {searchQuery ? (
-              <Search className="w-6 h-6" />
-            ) : isUnfollowMode ? (
-              <CheckCircle2 className="w-6 h-6 text-[#3fb950]" />
-            ) : (
-              <CheckCircle2 className="w-6 h-6 text-[#58a6ff]" />
-            )}
+        <div className="app-panel px-6 py-16 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
+            {searchQuery ? <Search className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6 text-[var(--brand)]" />}
           </div>
-          <h3 className="text-base font-semibold text-[#f0f6fc]">
+          <h3 className="mt-4 text-base font-semibold text-[var(--text)]">
             {searchQuery
-              ? `No accounts found matching "${searchQuery}"`
+              ? `No accounts matching “${searchQuery}”`
               : isUnfollowMode
-              ? "No non-followers found!"
-              : "No pending follow-backs!"}
+                ? "Your graph is perfectly mutual"
+                : "No follow-backs pending"}
           </h3>
-          <p className="text-xs text-[#8b949e] max-w-md mx-auto leading-relaxed">
+          <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-[var(--text-muted)]">
             {searchQuery
-              ? "Try adjusting your search query to find accounts by GitHub username."
+              ? "Try a different username or clear the search filter."
               : isUnfollowMode
-              ? "Awesome! Every single account you follow on GitHub is currently following you back."
-              : "Great job! You have reciprocated and followed back all users who are following your profile."}
+                ? "Everyone you follow also follows you back. Nothing to clean up here."
+                : "You've already followed back everyone who follows you."}
           </p>
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
-              className="text-xs text-[#58a6ff] hover:underline"
+              className="app-btn app-btn-secondary mx-auto mt-5"
             >
-              Clear search filter
+              Clear search
             </button>
           )}
         </div>
       )}
 
-      {/* Pagination Controls */}
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2 px-1">
-          <span className="text-xs text-[#8b949e]">
-            Page <strong className="text-[#f0f6fc]">{safePage}</strong> of{" "}
-            <strong className="text-[#f0f6fc]">{totalPages}</strong>
-          </span>
-
-          <div className="flex items-center gap-1.5">
+        <nav
+          className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] bg-white/[0.02] px-4 py-3"
+          aria-label="Pagination"
+        >
+          <p className="text-xs text-[var(--text-muted)]">
+            Page <span className="font-semibold text-[var(--text)]">{safePage}</span> of{" "}
+            <span className="font-semibold text-[var(--text)]">{totalPages}</span>
+          </p>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={safePage === 1}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] rounded-lg text-xs font-medium text-[#c9d1d9] disabled:opacity-40 transition-colors"
+              className="app-btn app-btn-outline h-9"
             >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Prev</span>
+              <ChevronLeft className="h-4 w-4" />
+              Previous
             </button>
-
             <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              type="button"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               disabled={safePage === totalPages}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] rounded-lg text-xs font-medium text-[#c9d1d9] disabled:opacity-40 transition-colors"
+              className="app-btn app-btn-outline h-9"
             >
-              <span>Next</span>
-              <ChevronRight className="w-4 h-4" />
+              Next
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-        </div>
+        </nav>
       )}
     </div>
   );
