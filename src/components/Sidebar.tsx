@@ -7,6 +7,7 @@ import {
   UserMinus,
   UserCheck,
   Settings,
+  ShieldCheck,
   ExternalLink,
   LogOut,
   X,
@@ -15,7 +16,6 @@ import {
 } from "lucide-react";
 import { TabType } from "@/types";
 import { GitHubUser } from "@/lib/session";
-import { GithubIcon } from "./GithubIcon";
 import { BrandLogo } from "./BrandLogo";
 import { UserAvatar } from "./UserAvatar";
 import { cn } from "@/lib/ui";
@@ -25,6 +25,7 @@ interface SidebarProps {
   onSelectTab: (tab: TabType) => void;
   notFollowingBackCount: number;
   followBackCount: number;
+  whitelistCount?: number;
   user: GitHubUser | null;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
@@ -36,6 +37,7 @@ export function Sidebar({
   onSelectTab,
   notFollowingBackCount,
   followBackCount,
+  whitelistCount = 0,
   user,
   isOpenMobile,
   onCloseMobile,
@@ -70,6 +72,13 @@ export function Sidebar({
       label: "Follow Back",
       icon: UserCheck,
       badge: followBackCount,
+      tone: "brand",
+    },
+    {
+      id: "whitelist" as TabType,
+      label: "Protected Accounts",
+      icon: ShieldCheck,
+      badge: whitelistCount,
       tone: "brand",
     },
     {
@@ -171,6 +180,8 @@ export function Sidebar({
           <div className="space-y-1">
             <Link
               href="/docs"
+              target="_blank"
+              rel="noopener noreferrer"
               className="group flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2.5 text-[13px] font-medium text-[var(--text-muted)] transition-colors hover:bg-white/[0.035] hover:text-[var(--text)]"
             >
               <BookOpen className="h-[17px] w-[17px] text-[var(--text-faint)] group-hover:text-[var(--info)]" />
@@ -244,10 +255,6 @@ export function Sidebar({
               <LogOut className="h-3.5 w-3.5" />
               Sign out
             </button>
-          </div>
-          <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-[var(--text-faint)]">
-            <GithubIcon className="h-3 w-3" />
-            <span>Official REST API · v3</span>
           </div>
         </div>
       )}

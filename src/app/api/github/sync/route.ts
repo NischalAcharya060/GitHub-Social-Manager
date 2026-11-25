@@ -29,6 +29,8 @@ export async function GET() {
         user: session.user,
         totalFollowers: demoData.totalFollowers,
         totalFollowing: demoData.totalFollowing,
+        followers: demoData.followers,
+        following: demoData.following,
         notFollowingBack: demoData.notFollowingBack,
         followBackCandidates: demoData.followBackCandidates,
         rateLimit: {
@@ -77,6 +79,8 @@ export async function GET() {
       user,
       totalFollowers: followers.length,
       totalFollowing: following.length,
+      followers,
+      following,
       notFollowingBack,
       followBackCandidates,
       rateLimit: rateLimit || followersRes.rateLimit || followingRes.rateLimit,

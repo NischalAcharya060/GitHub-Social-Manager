@@ -15,15 +15,18 @@ import {
   Zap,
   Check,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { GitHubAccountItem } from "@/lib/github";
 import { BulkActionSpeed } from "@/types";
 import { UserAvatar } from "./UserAvatar";
+import { AnimatedCounter } from "./AnimatedCounter";
 import { cn } from "@/lib/ui";
 
 interface BulkActionModalProps {
   isOpen: boolean;
   action: "follow" | "unfollow";
   targets: GitHubAccountItem[];
+  whitelist?: Set<string>;
   onClose: () => void;
   onSuccessFinished: (
     action: "follow" | "unfollow",
@@ -84,6 +87,7 @@ export function BulkActionModal({
   isOpen,
   action,
   targets,
+  whitelist,
   onClose,
   onSuccessFinished,
 }: BulkActionModalProps) {
@@ -134,8 +138,6 @@ export function BulkActionModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen, isExecuting, onClose]);
 
-  if (!isOpen) return null;
-
   const isUnfollow = action === "unfollow";
   const actionTitle = isUnfollow ? "Unfollow accounts" : "Follow back accounts";
   const totalCount = targets.length;
@@ -164,6 +166,21 @@ export function BulkActionModal({
         minute: "2-digit",
         second: "2-digit",
       });
+
+      // Double-safety safeguard: never unfollow a protected account
+      if (action === "unfollow" && whitelist && whitelist.has(account.login.toLowerCase())) {
+        setLogs((prev) => [
+          ...prev,
+          {
+            id: `${account.login}-${Date.now()}`,
+            timestamp,
+            username: account.login,
+            status: "success",
+            message: `Skipped @${account.login} (Shielded by Whitelist)`,
+          },
+        ]);
+        continue;
+      }
 
       try {
         const res = await fetch("/api/github/action", {
@@ -235,24 +252,32 @@ export function BulkActionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
-      <button
-        type="button"
-        aria-label="Close dialog"
-        onClick={() => {
-          if (!isExecuting) onClose();
-        }}
-        className="absolute inset-0 h-full w-full cursor-default bg-[rgba(2,5,9,0.78)] backdrop-blur-sm"
-      />
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => {
+              if (!isExecuting) onClose();
+            }}
+            className="absolute inset-0 h-full w-full cursor-default bg-[rgba(2,5,9,0.78)] backdrop-blur-sm"
+          />
 
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bulk-dialog-title"
-        tabIndex={-1}
-        className="animate-scale-in relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-none"
-      >
+          <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-dialog-title"
+            tabIndex={-1}
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ type: "spring", stiffness: 350, damping: 26 }}
+            className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-none"
+          >
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border-subtle)] p-5 sm:p-6">
           <div className="flex min-w-0 items-start gap-3">
@@ -355,25 +380,37 @@ export function BulkActionModal({
             <div className="space-y-5">
               <div className="app-panel-inset space-y-3 p-4">
                 <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="font-medium text-[var(--text)]">
-                    {isExecuting
-                      ? `Processing @${currentUsername}`
-                      : isCancelled
-                        ? "Execution stopped"
-                        : "Execution complete"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {isExecuting && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--info)] opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--info)]" />
+                      </span>
+                    )}
+                    <span className="font-medium text-[var(--text)]">
+                      {isExecuting
+                        ? `Processing @${currentUsername}`
+                        : isCancelled
+                          ? "Execution stopped"
+                          : "Execution complete"}
+                    </span>
+                  </div>
                   <span className="font-mono tabular-nums text-[var(--text-muted)]">
-                    {currentIndex} / {totalCount} ({progressPercent}%)
+                    <AnimatedCounter value={currentIndex} /> / {totalCount} ({progressPercent}%)
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
                   <div
                     className={cn(
-                      "h-full rounded-full transition-all duration-300",
-                      isUnfollow ? "bg-[var(--danger)]" : "bg-[var(--brand)]"
+                      "relative h-full rounded-full transition-all duration-300 overflow-hidden",
+                      isUnfollow
+                        ? "bg-gradient-to-r from-[var(--danger)] to-[#f06370]"
+                        : "bg-gradient-to-r from-[var(--brand)] to-[var(--brand-bright)]"
                     )}
                     style={{ width: `${progressPercent}%` }}
-                  />
+                  >
+                    <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 border-t border-[var(--border-subtle)] pt-3 text-center">
                   {[
@@ -390,7 +427,7 @@ export function BulkActionModal({
                         {item.label}
                       </p>
                       <p className={cn("mt-0.5 font-mono text-base font-semibold tabular-nums", item.tone)}>
-                        {item.value}
+                        <AnimatedCounter value={item.value} />
                       </p>
                     </div>
                   ))}
@@ -471,7 +508,9 @@ export function BulkActionModal({
             </>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
+      )}
+    </AnimatePresence>
   );
 }

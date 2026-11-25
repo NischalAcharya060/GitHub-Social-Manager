@@ -61,6 +61,8 @@ export function getDemoSyncData() {
   return {
     totalFollowers: 128,
     totalFollowing: 94 - (DEMO_NON_FOLLOWERS.length - activeDemoNonFollowers.length),
+    followers: [...activeDemoFollowBack, ...activeDemoNonFollowers.slice(0, 5)],
+    following: [...activeDemoNonFollowers],
     notFollowingBack: [...activeDemoNonFollowers],
     followBackCandidates: [...activeDemoFollowBack],
   };

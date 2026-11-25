@@ -14,13 +14,18 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowUpRight,
+  TrendingUp,
 } from "lucide-react";
 import { SyncData, TabType } from "@/types";
 import { GitHubAccountItem } from "@/lib/github";
 import { UserAvatar } from "./UserAvatar";
+import { AnimatedCounter } from "./AnimatedCounter";
+import { TiltCard } from "./TiltCard";
 
 interface DashboardViewProps {
   data: SyncData;
+  whitelist?: Set<string>;
+  cooldownSeconds?: number;
   onNavigateTab: (tab: TabType) => void;
   onTriggerBulkAction: (action: "follow" | "unfollow", targets: GitHubAccountItem[]) => void;
   onRefresh: () => void;
@@ -29,6 +34,8 @@ interface DashboardViewProps {
 
 export function DashboardView({
   data,
+  whitelist,
+  cooldownSeconds = 0,
   onNavigateTab,
   onTriggerBulkAction,
   onRefresh,
@@ -39,6 +46,14 @@ export function DashboardView({
 
   const notFollowingBackCount = notFollowingBack.length;
   const followBackCount = followBackCandidates.length;
+
+  // Filter protected accounts from bulk unfollow candidates on the dashboard
+  const safeNotFollowingBack = React.useMemo(() => {
+    if (!whitelist || whitelist.size === 0) return notFollowingBack;
+    return notFollowingBack.filter((a) => !whitelist.has(a.login.toLowerCase()));
+  }, [notFollowingBack, whitelist]);
+
+  const protectedCount = notFollowingBackCount - safeNotFollowingBack.length;
   const mutualRatio =
     totalFollowing > 0
       ? Math.round(((totalFollowing - notFollowingBackCount) / totalFollowing) * 100)
@@ -61,13 +76,19 @@ export function DashboardView({
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div className="relative shrink-0">
+              {isSyncing && (
+                <>
+                  <span className="pointer-events-none absolute -inset-2.5 animate-ping rounded-full bg-[var(--brand)]/25" />
+                  <span className="pointer-events-none absolute -inset-1 animate-pulse rounded-full border border-[var(--brand)]/40" />
+                </>
+              )}
               <UserAvatar
                 src={user.avatar_url}
                 name={user.login}
-                className="h-14 w-14 text-lg shadow-[var(--shadow-md)] sm:h-16 sm:w-16"
+                className="relative z-10 h-14 w-14 text-lg shadow-[var(--shadow-md)] sm:h-16 sm:w-16"
                 loading="eager"
               />
-              <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-[3px] border-[var(--surface)] bg-[var(--brand)]" />
+              <span className="absolute -bottom-0.5 -right-0.5 z-20 h-4 w-4 rounded-full border-[3px] border-[var(--surface)] bg-[var(--brand)]" />
             </div>
             <div className="min-w-0">
               <span className="eyebrow flex items-center gap-1.5">
@@ -92,13 +113,31 @@ export function DashboardView({
             <button
               type="button"
               onClick={onRefresh}
-              disabled={isSyncing}
+              disabled={isSyncing || cooldownSeconds > 0}
+              title={
+                cooldownSeconds > 0
+                  ? "Sync cooldown active to protect your GitHub API rate limit."
+                  : "Refresh followers and following lists"
+              }
+              aria-label={
+                isSyncing
+                  ? "Updating data"
+                  : cooldownSeconds > 0
+                    ? "Sync cooldown active"
+                    : "Refresh followers and following lists"
+              }
               className="app-btn app-btn-secondary"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-[var(--info)]" : ""}`}
               />
-              {isSyncing ? "Updating…" : "Sync now"}
+              {isSyncing
+                ? "Updating…"
+                : cooldownSeconds > 0
+                  ? `Cooldown (${Math.floor(cooldownSeconds / 60)}:${(cooldownSeconds % 60)
+                      .toString()
+                      .padStart(2, "0")})`
+                  : "Sync now"}
             </button>
           </div>
         </div>
@@ -148,13 +187,17 @@ export function DashboardView({
           tone="danger"
           icon={UserMinus}
           title="Unfollow non-followers"
-          description="Clean up your following list by removing one-way connections that no longer reciprocate."
-          count={notFollowingBackCount}
-          countLabel="accounts eligible"
-          accounts={notFollowingBack}
+          description={
+            protectedCount > 0
+              ? `Clean up one-way connections. ${protectedCount} protected account${protectedCount > 1 ? "s" : ""} will be safely preserved.`
+              : "Clean up your following list by removing one-way connections that no longer reciprocate."
+          }
+          count={safeNotFollowingBack.length}
+          countLabel={protectedCount > 0 ? "eligible (shield active)" : "accounts eligible"}
+          accounts={safeNotFollowingBack}
           emptyMessage={`All ${totalFollowing.toLocaleString()} accounts you follow follow you back.`}
           onReview={() => onNavigateTab("not-following-back")}
-          onRun={() => onTriggerBulkAction("unfollow", notFollowingBack)}
+          onRun={() => onTriggerBulkAction("unfollow", safeNotFollowingBack)}
           index={1}
         />
         <ActionCard
@@ -175,37 +218,113 @@ export function DashboardView({
       {/* Insight + safety */}
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_1fr]">
         <div className="app-panel p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="eyebrow">Graph health</p>
-              <h3 className="section-title mt-1.5">Mutual connection rate</h3>
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="eyebrow flex items-center gap-1.5">
+                <TrendingUp className="h-3 w-3" /> Graph health
+              </p>
+              <h3 className="section-title mt-1.5">Network reciprocity breakdown</h3>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Share of accounts you follow that also follow you back.
+                Interactive distribution of mutual connections, cleanup targets, and follow-back opportunities.
               </p>
             </div>
-            <span className="font-mono text-2xl font-semibold tabular-nums text-[var(--text)]">
-              {mutualRatio}%
-            </span>
+
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="text-right">
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-faint)]">
+                  Mutual Rate
+                </span>
+                <p className="font-mono text-2xl font-bold tabular-nums text-[var(--brand)]">
+                  <AnimatedCounter value={mutualRatio} suffix="%" />
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[var(--brand)] to-[var(--info)] transition-all duration-700"
-              style={{ width: `${mutualRatio}%` }}
-            />
+
+          {/* Interactive Multi-Segment Reciprocity Bar */}
+          <div className="mt-5 space-y-2">
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-white/[0.06] p-0.5">
+              {totalFollowing > 0 && (
+                <>
+                  <div
+                    title={`Mutual connections: ${(totalFollowing - notFollowingBackCount).toLocaleString()}`}
+                    className="h-full rounded-l-full bg-gradient-to-r from-[var(--brand)] to-[var(--brand-bright)] transition-all duration-700"
+                    style={{
+                      width: `${Math.max(
+                        3,
+                        Math.round(((totalFollowing - notFollowingBackCount) / totalFollowing) * 100)
+                      )}%`,
+                    }}
+                  />
+                  <div
+                    title={`One-way non-followers: ${notFollowingBackCount.toLocaleString()}`}
+                    className="h-full rounded-r-full bg-gradient-to-r from-[var(--danger)] to-[#f06370] transition-all duration-700"
+                    style={{
+                      width: `${Math.max(
+                        3,
+                        Math.round((notFollowingBackCount / totalFollowing) * 100)
+                      )}%`,
+                    }}
+                  />
+                </>
+              )}
+            </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-            <div className="app-panel-inset px-3 py-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Mutual</p>
-              <p className="mt-0.5 font-mono font-semibold tabular-nums text-[var(--brand)]">
-                {(totalFollowing - notFollowingBackCount).toLocaleString()}
+
+          {/* Interactive 3-way distribution cards */}
+          <div className="mt-5 grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+            <div className="app-panel-inset px-3.5 py-3 transition-colors hover:border-[var(--brand-line)]">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)]">
+                  Mutual
+                </p>
+                <span className="h-2 w-2 rounded-full bg-[var(--brand)]" />
+              </div>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-[var(--brand)]">
+                <AnimatedCounter value={Math.max(0, totalFollowing - notFollowingBackCount)} />
               </p>
+              <p className="mt-0.5 text-[10px] text-[var(--text-faint)]">Follow each other</p>
             </div>
-            <div className="app-panel-inset px-3 py-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--text-faint)]">One-way</p>
-              <p className="mt-0.5 font-mono font-semibold tabular-nums text-[var(--danger)]">
-                {notFollowingBackCount.toLocaleString()}
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab("not-following-back")}
+              className="app-panel-inset group px-3.5 py-3 text-left transition-colors hover:border-[var(--danger-line)] hover:bg-[var(--danger-soft)]/20"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] group-hover:text-[var(--danger)]">
+                  One-way
+                </p>
+                <span className="h-2 w-2 rounded-full bg-[var(--danger)]" />
+              </div>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-[var(--danger)]">
+                <AnimatedCounter value={notFollowingBackCount} />
               </p>
-            </div>
+              <p className="mt-0.5 flex items-center justify-between text-[10px] text-[var(--text-faint)]">
+                <span>Eligible for cleanup</span>
+                <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab("follow-back")}
+              className="app-panel-inset group px-3.5 py-3 text-left transition-colors hover:border-[var(--info-line)] hover:bg-[var(--info-soft)]/20"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] group-hover:text-[var(--info)]">
+                  Candidates
+                </p>
+                <span className="h-2 w-2 rounded-full bg-[var(--info)]" />
+              </div>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-[var(--info)]">
+                <AnimatedCounter value={followBackCount} />
+              </p>
+              <p className="mt-0.5 flex items-center justify-between text-[10px] text-[var(--text-faint)]">
+                <span>Followers to follow back</span>
+                <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+              </p>
+            </button>
           </div>
         </div>
 
@@ -244,6 +363,13 @@ const TONE_STYLES: Record<Tone, { icon: string; accent: string }> = {
   },
 };
 
+const GLOW_COLORS: Record<Tone, string> = {
+  brand: "rgba(87, 217, 138, 0.12)",
+  danger: "rgba(255, 133, 140, 0.12)",
+  info: "rgba(116, 177, 255, 0.12)",
+  neutral: "rgba(255, 255, 255, 0.06)",
+};
+
 function MetricCard({
   label,
   value,
@@ -263,7 +389,7 @@ function MetricCard({
 }) {
   const styles = TONE_STYLES[tone];
   const content = (
-    <>
+    <div className="flex h-full flex-col justify-between">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
           {label}
@@ -274,7 +400,7 @@ function MetricCard({
       </div>
       <div className="mt-4">
         <p className="font-mono text-[28px] font-semibold leading-none tabular-nums tracking-tight text-[var(--text)]">
-          {value.toLocaleString()}
+          <AnimatedCounter value={value} />
         </p>
         <p className="mt-2 text-[11px] text-[var(--text-faint)]">{hint}</p>
       </div>
@@ -286,20 +412,22 @@ function MetricCard({
       <span
         className={`absolute inset-x-5 top-0 h-px opacity-0 transition-opacity duration-300 ${styles.accent} group-hover:opacity-70`}
       />
-    </>
+    </div>
   );
 
-  const classes = `animate-rise delay-${index} app-panel app-panel-hover group relative overflow-hidden p-5 text-left`;
+  const classes = `animate-rise delay-${index} app-panel app-panel-hover group relative overflow-hidden p-5 text-left h-full w-full block`;
 
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className={classes}>
-        {content}
-      </button>
-    );
-  }
-
-  return <div className={classes}>{content}</div>;
+  return (
+    <TiltCard glowColor={GLOW_COLORS[tone]} className="h-full rounded-[var(--radius-lg)]">
+      {onClick ? (
+        <button type="button" onClick={onClick} className={classes}>
+          {content}
+        </button>
+      ) : (
+        <div className={classes}>{content}</div>
+      )}
+    </TiltCard>
+  );
 }
 
 function ActionCard({

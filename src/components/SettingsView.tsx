@@ -25,6 +25,8 @@ interface SettingsViewProps {
   rateLimit: RateLimitInfo | null;
   syncedAt: string;
   authType: "oauth" | "token";
+  whitelistCount: number;
+  cooldownSeconds?: number;
   onRefresh: () => void;
   isSyncing: boolean;
   onLogout: () => void;
@@ -35,6 +37,8 @@ export function SettingsView({
   rateLimit,
   syncedAt,
   authType,
+  whitelistCount,
+  cooldownSeconds = 0,
   onRefresh,
   isSyncing,
   onLogout,
@@ -172,11 +176,29 @@ export function SettingsView({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={isSyncing}
+            disabled={isSyncing || cooldownSeconds > 0}
             className="app-btn app-btn-secondary mt-auto w-full"
+            title={
+              cooldownSeconds > 0
+                ? "Sync cooldown active to protect your GitHub API rate limit."
+                : "Force full re-sync with GitHub"
+            }
+            aria-label={
+              isSyncing
+                ? "Fetching complete data"
+                : cooldownSeconds > 0
+                  ? "Sync cooldown active"
+                  : "Force full re-sync"
+            }
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-[var(--info)]" : ""}`} />
-            {isSyncing ? "Fetching complete data…" : "Force full re-sync"}
+            {isSyncing
+              ? "Fetching complete data…"
+              : cooldownSeconds > 0
+                ? `Cooldown (${Math.floor(cooldownSeconds / 60)}:${(cooldownSeconds % 60)
+                    .toString()
+                    .padStart(2, "0")})`
+                : "Force full re-sync"}
           </button>
         </div>
 
@@ -233,6 +255,38 @@ export function SettingsView({
             <Shield className="h-3.5 w-3.5 text-[var(--brand)]" />
             Automatic throttling protects against HTTP 429 errors.
           </div>
+        </div>
+      </section>
+
+      {/* Whitelist & Graph Protection */}
+      <section className="app-panel p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--brand-line)] bg-[var(--brand-soft)] text-[var(--brand)]">
+              <Shield className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="section-title">Whitelist &amp; Graph Protection</h3>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Permanent shielding for friends, bots, and organizations
+              </p>
+            </div>
+          </div>
+          <span className="app-chip app-chip-brand">
+            <CheckCircle2 className="h-3 w-3" />
+            Active
+          </span>
+        </div>
+
+        <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-muted)]">
+          Protected accounts are permanently shielded and will never be unfollowed during cleanup or batch operations.
+        </p>
+
+        <div className="app-panel-inset mt-4 flex items-center justify-between px-4 py-3 text-xs">
+          <span className="text-[var(--text-muted)]">Shielded accounts</span>
+          <span className="font-mono font-semibold tabular-nums text-[var(--brand)]">
+            {whitelistCount.toLocaleString()} accounts protected
+          </span>
         </div>
       </section>
 

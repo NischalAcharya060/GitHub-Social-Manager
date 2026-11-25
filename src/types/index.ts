@@ -1,7 +1,7 @@
 import { GitHubAccountItem, RateLimitInfo } from "@/lib/github";
 import { GitHubUser } from "@/lib/session";
 
-export type TabType = "dashboard" | "not-following-back" | "follow-back" | "settings";
+export type TabType = "dashboard" | "not-following-back" | "follow-back" | "whitelist" | "settings";
 
 export type BulkActionSpeed = "safe" | "balanced" | "fast";
 
@@ -11,6 +11,8 @@ export interface SyncData {
   totalFollowing: number;
   notFollowingBack: GitHubAccountItem[];
   followBackCandidates: GitHubAccountItem[];
+  followers?: GitHubAccountItem[];
+  following?: GitHubAccountItem[];
   rateLimit: RateLimitInfo | null;
   syncedAt: string;
 }

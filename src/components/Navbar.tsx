@@ -11,6 +11,7 @@ import {
   UserMinus,
   UserCheck,
   Settings as SettingsIcon,
+  ShieldCheck,
   ChevronRight,
   Star,
 } from "lucide-react";
@@ -25,6 +26,7 @@ interface NavbarProps {
   user: GitHubUser | null;
   rateLimit: RateLimitInfo | null;
   isSyncing: boolean;
+  cooldownSeconds?: number;
   onSync: () => void;
   onLogout: () => void;
   onToggleSidebar: () => void;
@@ -37,6 +39,7 @@ const TAB_META: Record<
   dashboard: { label: "Overview", icon: LayoutDashboard },
   "not-following-back": { label: "Not Following Back", icon: UserMinus },
   "follow-back": { label: "Follow Back", icon: UserCheck },
+  whitelist: { label: "Protected Accounts", icon: ShieldCheck },
   settings: { label: "Settings", icon: SettingsIcon },
 };
 
@@ -45,6 +48,7 @@ export function Navbar({
   user,
   rateLimit,
   isSyncing,
+  cooldownSeconds = 0,
   onSync,
   onLogout,
   onToggleSidebar,
@@ -53,6 +57,12 @@ export function Navbar({
   const quotaPercent = rateLimit
     ? Math.min(100, Math.max(0, Math.round((rateLimit.remaining / rateLimit.limit) * 100)))
     : null;
+
+  const formatCooldown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-glass)] px-4 backdrop-blur-xl sm:px-8 lg:px-12">
@@ -125,12 +135,29 @@ export function Navbar({
         <button
           type="button"
           onClick={onSync}
-          disabled={isSyncing}
+          disabled={isSyncing || cooldownSeconds > 0}
           className="app-btn app-btn-secondary h-10 px-3"
-          aria-label={isSyncing ? "Syncing GitHub data" : "Sync GitHub data"}
+          aria-label={
+            isSyncing
+              ? "Syncing GitHub data"
+              : cooldownSeconds > 0
+                ? "Sync cooldown active"
+                : "Sync GitHub data"
+          }
+          title={
+            cooldownSeconds > 0
+              ? "Sync cooldown active to protect your GitHub API rate limit."
+              : "Sync latest followers and following from GitHub"
+          }
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-[var(--info)]" : ""}`} />
-          <span className="hidden sm:inline">{isSyncing ? "Syncing" : "Sync"}</span>
+          <span className="hidden sm:inline">
+            {isSyncing
+              ? "Syncing"
+              : cooldownSeconds > 0
+                ? `Cooldown (${formatCooldown(cooldownSeconds)})`
+                : "Sync"}
+          </span>
         </button>
 
         {user && (
